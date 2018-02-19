@@ -16,6 +16,8 @@ void decimalASCIITime(long unsigned int timeInput);
 void decimalASCIIDate(long unsigned int dateInput);
 void runtimerA2(void);
 void stoptimerA2(int reset);
+unsigned int potValue(void);
+void printPotVal(unsigned int gal);
 
 //GLOBAL VARIABLES
 unsigned int in_temp;
@@ -31,6 +33,10 @@ int i = 0, j = 0;
 int once = 1;
 long unsigned int days = 0;
 long unsigned int actDays = 0;
+unsigned char potArray[12] = {' '};
+unsigned int pot = 0;
+unsigned int potVal = 0;
+
 
 int main(void)
 {
@@ -50,6 +56,8 @@ int main(void)
 
     while (1)
     {
+        pot = potValue();
+        printPotVal(pot);
         decimalASCIIDate(timer_cnt);
         decimalASCIITime(timer_cnt);
 
@@ -59,6 +67,9 @@ int main(void)
 
         // Write some text to the display
         Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 45,
+                                    OPAQUE_TEXT);
+
+        Graphics_drawStringCentered(&g_sContext, potArray, 10, 48, 55,
                                     OPAQUE_TEXT);
 
         // Update display
@@ -276,42 +287,32 @@ void decimalASCIIDate(long unsigned int dateInput){
 
 }
 
-unsigned int potentiometerValue()
+unsigned int potValue(void)
 {
-    unsigned int potVal = 0;
-    // Reset REFMSTR to hand over control of internal reference
-    // voltages to ADC12_A control registers
+    ADC12CTL0 |= ADC12SC + ADC12ENC;
+    //unsigned int potVal;
     REFCTL0 &= ~REFMSTR;
+    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12REF2_5V | ADC12ON | ADC12MSC;
+    ADC12CTL1 = ADC12SHP | ADC12CONSEQ_1 | ADC12EOS;
+    ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_0;
+    P6SEL |= BIT0;
+    ADC12CTL0 &= ~ADC12SC;
 
-    // Initialize control register ADC12CTL0 = 0000 1001 0111 0000 // SHT0x = 9h (384 clk cycles), MCS = 0 = no burst mode
-    // and ADC12ON = 1 = turn ADC on
-    ADC12CTL0 = ADC12SHT0_9 | ADC12ON;
-
-    // Initialize control register ADC12CTL1 = 0000 0010 0000 0000
-    // ADC12CSTART ADDx = 0000 = start conversion with ADC12MEM0,
-    // ADC12SHSx = 00 = use SW conversion trigger, ADC12SC bits
-    // ADC12SHP = 1 = SAMPCON signal sourced from sampling timer,
-    // ADC12ISSH = 0 = sample input signal not inverted,
-    // ADC12DIVx = 000= divide ADC12CLK by 1,
-    // ADC12SSEL=00= ADC clock ADC12OSC (~5 MHz),
-    // ADC12CONSEQx = 00 single channel, single conversion,
-    // ADC12BUSY = 0 = no ADC operation active
-    ADC12CTL1 = ADC12SHP;
-
-    // Set conversion memory control register ADC12MCTL0 = 0001 0101 // EOS = 0, SREF=000 -->Voltage refs = GND to Vcc = 3.3V
-    // INCHx = 0000 = analog input from A0
-    ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0;
-    P6SEL |= BIT0; // Set Port 6 Pin 0 to FUNCTION mode for ADC
-    ADC12CTL0 &= ~ADC12SC; // clear the start bit
-
-    ADC12CTL0 &= ~ADC12SC; // clear the start bit
-    //Enable and start (single) conversion (not using ADC interrupts) ADC12CTL0 |= ADC12SC + ADC12ENC;
-    // Poll busy bit waiting for conversion to complete
-    while (ADC12CTL1 & ADC12BUSY)
+    while(ADC12CTL1 & ADC12BUSY)
     {
-        no_operation();
+        __no_operation();
     }
-    potVal = ADC12MEM0 & 0x0FFF; // keep only low 12 bits
+
+    potVal = ADC12MEM0 & 0x0FFF;
     return(potVal);
+}
+
+void printPotVal(unsigned int gal)
+{
+    for (j = 12; j >= 0; j--)
+    {
+        potArray[j] = ((gal % 10) + 0x30);
+        gal = gal / 10;
+    }
 }
 
