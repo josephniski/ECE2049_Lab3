@@ -1,3 +1,4 @@
+
 //Drew Robert and Joe Niski
 //ECE 2049
 //Lab 3
@@ -5,20 +6,20 @@
 #include <msp430.h>
 #include "peripherals.h"
 
-// Temperature Sensor Calibration = Reading at 30 degrees C is stored at addr 1A1Ah
-// See end of datasheet for TLV table memory mapping
-#define CALADC12_15V_30C  *((unsigned int *)0x1A1A)
-// Temperature Sensor Calibration = Reading at 85 degrees C is stored at addr 1A1Ch                                            //See device datasheet for TLV table memory mapping
-#define CALADC12_15V_85C  *((unsigned int *)0x1A1C)
+#define CALADC12_25V_30C *((unsigned int *)0x1A22)
+#define CALADC12_25V_85C *((unsigned int *)0x1A24)
+
 
 //FUNCTIONS
 void decimalASCIITime(long unsigned int timeInput);
 void decimalASCIIDate(long unsigned int dateInput);
 void runtimerA2(void);
 void stoptimerA2(int reset);
+void adc12_config(void);
+void displayTempC(unsigned int inTemp);
+void displayTempF(void);
 unsigned int potValue(void);
 void printPotVal(unsigned int gal);
-void configPot(void);
 
 //GLOBAL VARIABLES
 unsigned int in_temp;
@@ -30,10 +31,17 @@ unsigned char minArray[2] = {' '};
 unsigned char hourArray[2] = {' '};
 unsigned char monthArray[3] = {' '};
 unsigned char daysArray[2] = {' '};
-int i = 0, j = 0;
+unsigned char tempArrayC[5] = {' '};
+unsigned char tempArrayF[5] = {' '};
+int i = 0, j = 0 , m = 0, n = 0;
 int once = 1;
 long unsigned int days = 0;
 long unsigned int actDays = 0;
+unsigned int adc_inTemp = 0;
+float tempC = 0;
+float tempF = 0;
+int dispC = 0;
+int dispF = 0;
 unsigned char potArray[5] = {' '};
 unsigned int pot = 0;
 unsigned int potVal = 0;
@@ -50,33 +58,35 @@ int main(void)
     configDisplay();
     configKeypad();
 
+    adc12_config();
     runtimerA2();
 
-    //configPot();
     // *** Intro Screen ***
     Graphics_clearDisplay(&g_sContext); // Clear the display
 
-    while (1)
+    /*while (1)
     {
-        pot = potValue();
-        printPotVal(pot);
         decimalASCIIDate(timer_cnt);
         decimalASCIITime(timer_cnt);
+        displayTempC(adc_inTemp);
 
-        // Write some text to the display
-        Graphics_drawStringCentered(&g_sContext, dateArray, 6, 48, 35,
+        Graphics_drawStringCentered(&g_sContext, dateArray, 6, 48, 25,
                                     OPAQUE_TEXT);
 
-        // Write some text to the display
-        Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 45,
+        Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
                                     OPAQUE_TEXT);
 
-        Graphics_drawStringCentered(&g_sContext, potArray, 5, 48, 55,
+        Graphics_drawStringCentered(&g_sContext, tempArrayC, 5, 48, 55,
+                                    OPAQUE_TEXT);
+
+        Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
                                     OPAQUE_TEXT);
 
         // Update display
         Graphics_flushBuffer(&g_sContext);
-    }
+
+
+    }*/
 
 }
 
@@ -115,7 +125,8 @@ void stoptimerA2(int reset)
 __interrupt void TimerA2_ISR(void)
 {
     timer_cnt++;
-    //ADC12CTL0 |= ADC12SC + ADC12ENC;
+
+    ADC12CTL0 |= ADC12SC + ADC12ENC; //start conversion
 }
 
 void decimalASCIITime(long unsigned int timeInput){
@@ -290,28 +301,76 @@ void decimalASCIIDate(long unsigned int dateInput){
 
 }
 
-void configPot(void)
-{
-    //unsigned int potVal;
+void adc12_config(void){
+    // Single channel, single converion (internal temp. sensor)
+    // to ADC12MEM1 register
     REFCTL0 &= ~REFMSTR;
-    ADC12CTL0 = ADC12SHT0_9 | ADC12ON;
-    ADC12CTL1 = ADC12SHP;
-    ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0;
-    P6SEL |= BIT0;
-    ADC12CTL0 &= ~ADC12SC;
-    ADC12CTL0 = ADC12SC + ADC12ENC;
+    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON | ADC12REF2_5V;
+    ADC12CTL1 = ADC12SHP + ADC12CSTARTADD_1;
+    ADC12MCTL1 = ADC12SREF_1 + ADC12INCH_10;
+    ADC12IE = BIT1; // using ADC12MEM1 for conversion result
+                    // so enable interrupt for MEM1
 }
 
-/*unsigned int potValue(void)
+#pragma vector=ADC12_VECTOR
+__interrupt void ADC12ISR(void)
 {
-    while(ADC12CTL1 & ADC12BUSY)
+// Interrupt is generated when conversion (or last
+// conversion if multi-channel) is complete so just
+// read the results
+adc_inTemp = ADC12MEM1; // Move results to global
+                        // variable adc_inTemp
+}
+
+void displayTempC(unsigned int inTemp){
+
+    tempC = (float)(((long)inTemp-CALADC12_25V_30C)*(85 - 30))/(CALADC12_25V_85C - CALADC12_25V_30C) + 30.0;
+    dispC = tempC * 10;
+
+    for (m = 4; m >= 0; m--)
     {
-        __no_operation();
+        if (m == 4)
+        {
+            tempArrayC[m] = 'C';
+        }
+        else if (m == 2)
+        {
+            tempArrayC[m] = '.';
+        }
+        else
+        {
+            tempArrayC[m] = ((dispC % 10) + 0x30);
+            dispC = dispC / 10;
+        }
     }
 
-    potVal = ADC12MEM0 & 0x0FFF;
-    return potVal;
-}*/
+    displayTempF();
+
+}
+
+void displayTempF(void){
+
+    tempF = (float)(tempC * (9/5)) + 32;
+    dispF = tempF * 10;
+
+    for (n = 4; n >= 0; n--)
+    {
+        if (n == 4)
+        {
+            tempArrayF[n] = 'F';
+        }
+        else if (n == 2)
+        {
+            tempArrayF[n] = '.';
+        }
+        else
+        {
+            tempArrayF[n] = ((dispF % 10) + 0x30);
+            dispF = dispF / 10;
+        }
+    }
+
+}
 
 unsigned int potValue(void)
 {
@@ -342,4 +401,3 @@ void printPotVal(unsigned int gal)
         gal = gal / 10;
     }
 }
-
