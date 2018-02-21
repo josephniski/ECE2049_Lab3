@@ -52,7 +52,7 @@ int main(void)
 
     runtimerA2();
 
-    configPot();
+    //configPot();
     // *** Intro Screen ***
     Graphics_clearDisplay(&g_sContext); // Clear the display
 
@@ -302,12 +302,33 @@ void configPot(void)
     ADC12CTL0 = ADC12SC + ADC12ENC;
 }
 
-unsigned int potValue(void)
+/*unsigned int potValue(void)
 {
-    /*while(ADC12CTL1 & ADC12BUSY)
+    while(ADC12CTL1 & ADC12BUSY)
     {
         __no_operation();
-    }*/
+    }
+
+    potVal = ADC12MEM0 & 0x0FFF;
+    return potVal;
+}*/
+
+unsigned int potValue(void)
+{
+    REFCTL0 &= ~REFMSTR;
+    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12REF2_5V*/ | ADC12ON;
+    ADC12CTL1 = ADC12SHP;
+    ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0;
+
+    P6SEL |= BIT0;
+    ADC12CTL0 &= ~ ADC12SC;
+
+    ADC12CTL0 |= ADC12SC + ADC12ENC;
+
+    while (ADC12CTL1 & ADC12BUSY)
+    {
+        __no_operation();
+    }
 
     potVal = ADC12MEM0 & 0x0FFF;
     return potVal;
