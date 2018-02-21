@@ -5,9 +5,15 @@
 
 #include <msp430.h>
 #include "peripherals.h"
+#include "math.h"
 
-#define CALADC12_25V_30C *((unsigned int *)0x1A22)
-#define CALADC12_25V_85C *((unsigned int *)0x1A24)
+//#define CALADC12_25V_30C *((unsigned int *)0x1A22)
+//#define CALADC12_25V_85C *((unsigned int *)0x1A24)
+
+#define CALADC12_15V_30C  *((unsigned int *)0x1A1A)
+// Temperature Sensor Calibration = Reading at 85 degrees C is stored at addr 1A1Ch
+//See device datasheet for TLV table memory mapping
+#define CALADC12_15V_85C  *((unsigned int *)0x1A1C)
 
 
 //FUNCTIONS
@@ -18,11 +24,16 @@ void stoptimerA2(int reset);
 void adc12_config(void);
 void displayTempC(unsigned int inTemp);
 void displayTempF(void);
+void averageTemp(unsigned int inTemp);
+void configLaunchButtons();
+char launchpadButtonStates();
 unsigned int potValue(void);
 void printPotVal(unsigned int gal);
 
+
 //GLOBAL VARIABLES
 unsigned int in_temp;
+int state = 0;
 long unsigned int timer_cnt = 15552000; //June 29th 00:00:00
 unsigned char timeArray[8] = {' '};
 unsigned char dateArray[6] = {' '};
@@ -38,14 +49,20 @@ int once = 1;
 long unsigned int days = 0;
 long unsigned int actDays = 0;
 unsigned int adc_inTemp = 0;
-float tempC = 0;
+float tempCel = 0;
 float tempF = 0;
 int dispC = 0;
 int dispF = 0;
+unsigned char tenSecReadingsC[10] = {' '};
+unsigned char tenSecReadingsF[10] = {' '};
+float averageC = 0;
+float averageF = 0;
+unsigned char times[60] = {' '};
+unsigned char tempC[5] = {' '};
+char pressed2 = 0x00;
 unsigned char potArray[5] = {' '};
 unsigned int pot = 0;
 unsigned int potVal = 0;
-
 
 int main(void)
 {
@@ -57,36 +74,136 @@ int main(void)
 
     configDisplay();
     configKeypad();
+    configLaunchButtons();
 
-    adc12_config();
-    runtimerA2();
+    //adc12_config();
+
 
     // *** Intro Screen ***
     Graphics_clearDisplay(&g_sContext); // Clear the display
 
-    /*while (1)
+    while (1)
     {
-        decimalASCIIDate(timer_cnt);
-        decimalASCIITime(timer_cnt);
-        displayTempC(adc_inTemp);
+        //displayTempC(adc_inTemp);
 
-        Graphics_drawStringCentered(&g_sContext, dateArray, 6, 48, 25,
-                                    OPAQUE_TEXT);
+        switch (state){
+        case 0:  // display mode
+            //runtimerA2();
 
-        Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
-                                    OPAQUE_TEXT);
+            /*displayTempC(adc_inTemp);
 
-        Graphics_drawStringCentered(&g_sContext, tempArrayC, 5, 48, 55,
-                                    OPAQUE_TEXT);
-
-        Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
-                                    OPAQUE_TEXT);
-
-        // Update display
-        Graphics_flushBuffer(&g_sContext);
+            decimalASCIIDate(timer_cnt);
+            decimalASCIITime(timer_cnt);
 
 
-    }*/
+            Graphics_drawStringCentered(&g_sContext, dateArray, 6, 48, 25,
+                                        OPAQUE_TEXT);
+
+            Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
+                                        OPAQUE_TEXT);
+
+            Graphics_drawStringCentered(&g_sContext, tempArrayC, 5, 48, 55,
+                                        OPAQUE_TEXT);
+
+            Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
+                                        OPAQUE_TEXT);*/
+
+            potVal = potValue();
+            printPotVal(potVal);
+
+            Graphics_drawStringCentered(&g_sContext, potArray, 5, 48, 75,
+                                        OPAQUE_TEXT);
+            // Update display
+            Graphics_flushBuffer(&g_sContext);
+
+
+
+            // Update display
+            Graphics_flushBuffer(&g_sContext);
+
+            if (pressed2 == 0x01){
+                stoptimerA2(0);
+                state = 1;
+            }
+
+            break;
+
+        case 1: //Edit MONTHS
+
+            potVal = potValue();
+            printPotVal(potVal);
+
+            Graphics_drawStringCentered(&g_sContext, potArray, 5, 48, 75,
+                                        OPAQUE_TEXT);
+            // Update display
+            Graphics_flushBuffer(&g_sContext);
+
+            break;
+
+            /*if (pressed2 == 0x01){
+
+                state = 2;
+            }
+
+            else if (pressed2 == 0x04){
+                state = 0; // go back to display mode
+            }
+
+            break;
+
+        case 2: //Edit DAY
+
+            if (pressed2 == 0x01){
+                state = 3;
+            }
+
+            else if (pressed2 == 0x04){
+                 state = 0; // go back to display mode
+            }
+
+            break;
+
+        case 3: //Edit HOURS
+
+            if (pressed2 == 0x01){
+                state = 4;
+            }
+
+            else if (pressed2 == 0x04){
+                 state = 0; // go back to display mode
+            }
+
+            break;
+
+        case 4: //Edit MINUTES
+
+            if (pressed2 == 0x01){
+                state = 5;
+            }
+
+            else if (pressed2 == 0x04){
+                 state = 0; // go back to display mode
+            }
+
+            break;
+
+        case 5: //Edit SECONDS
+
+            if (pressed2 == 0x01){
+                state = 1;
+            }
+
+            else if (pressed2 == 0x04){
+                 state = 0; // go back to display mode
+             }
+
+            break;*/
+
+
+        }
+
+
+    }
 
 }
 
@@ -125,8 +242,15 @@ void stoptimerA2(int reset)
 __interrupt void TimerA2_ISR(void)
 {
     timer_cnt++;
+    /*leap_cnt++;
+    if(leap_cnt == x counts)
+    {
+        leap_cnt--;
+    }*/
 
     ADC12CTL0 |= ADC12SC + ADC12ENC; //start conversion
+
+    pressed2 = launchpadButtonStates(); //determine when the button is pressed
 }
 
 void decimalASCIITime(long unsigned int timeInput){
@@ -305,9 +429,10 @@ void adc12_config(void){
     // Single channel, single converion (internal temp. sensor)
     // to ADC12MEM1 register
     REFCTL0 &= ~REFMSTR;
-    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON | ADC12REF2_5V;
+    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON | ADC12MSC;
     ADC12CTL1 = ADC12SHP + ADC12CSTARTADD_1;
-    ADC12MCTL1 = ADC12SREF_1 + ADC12INCH_10;
+    ADC12MCTL1 = ADC12SREF_1 + ADC12INCH_10; // for temperature sensor
+    //ADC12MCTL2 = ADC12SREF_0 + ADC12INCH_0 + ADC12EOS; // for scroll wheel
     ADC12IE = BIT1; // using ADC12MEM1 for conversion result
                     // so enable interrupt for MEM1
 }
@@ -318,14 +443,15 @@ __interrupt void ADC12ISR(void)
 // Interrupt is generated when conversion (or last
 // conversion if multi-channel) is complete so just
 // read the results
-adc_inTemp = ADC12MEM1; // Move results to global
+    adc_inTemp = ADC12MEM1; // Move results to global
                         // variable adc_inTemp
 }
 
 void displayTempC(unsigned int inTemp){
 
-    tempC = (float)(((long)inTemp-CALADC12_25V_30C)*(85 - 30))/(CALADC12_25V_85C - CALADC12_25V_30C) + 30.0;
-    dispC = tempC * 10;
+    averageTemp(inTemp);
+
+    dispC = averageC * 10;
 
     for (m = 4; m >= 0; m--)
     {
@@ -344,14 +470,7 @@ void displayTempC(unsigned int inTemp){
         }
     }
 
-    displayTempF();
-
-}
-
-void displayTempF(void){
-
-    tempF = (float)(tempC * (9/5)) + 32;
-    dispF = tempF * 10;
+    dispF = averageF * 10;
 
     for (n = 4; n >= 0; n--)
     {
@@ -370,17 +489,75 @@ void displayTempF(void){
         }
     }
 
+
+}
+
+
+void averageTemp(unsigned int inTemp){
+
+    tempCel = (float)(((long)inTemp-CALADC12_15V_30C)*(85 - 30))/(CALADC12_15V_85C - CALADC12_15V_30C) + 30.0;
+
+    tenSecReadingsC[timer_cnt % 10] = tempCel;
+
+    if(timer_cnt >= 15552010){
+        averageC = (float)(tenSecReadingsC[0] + tenSecReadingsC[1] + tenSecReadingsC[2] + tenSecReadingsC[3] + tenSecReadingsC[4] + tenSecReadingsC[5]
+                   + tenSecReadingsC[6] + tenSecReadingsC[7] + tenSecReadingsC[8] + tenSecReadingsC[9])/10;
+        averageF = (float)(averageC * (1.8)) + 32;
+
+    }
+
+    times[timer_cnt % 60] = timer_cnt;
+    tempC[timer_cnt % 60] = averageC;
+
+}
+
+void configLaunchButtons(){
+    //2 Launchpad Buttons: P1.1, P2.1
+
+    P2SEL &= (BIT7|BIT6|BIT5|BIT4|BIT3|BIT2|BIT0); //xxxx xx0x
+    P1SEL &= (BIT7|BIT6|BIT5|BIT4|BIT3|BIT2|BIT0); //xxxx xx0x
+
+    P2DIR &= (BIT7|BIT6|BIT5|BIT4|BIT3|BIT2|BIT0); //xxxx xx0x
+    P1DIR &= (BIT7|BIT6|BIT5|BIT4|BIT3|BIT2|BIT0); //xxxx xx0x
+
+    P2REN |= (BIT1);
+    P1REN |= (BIT1);
+
+    P2OUT |= (BIT1);
+    P1OUT |= (BIT1);
+}
+
+char launchpadButtonStates(){
+    //1 is not pressed
+    //0 is pressed
+
+    char inBits11, inBits21;
+    char out11=0, out21=0, out=0;
+
+    inBits21 = P2IN & (BIT1); //0000 00x0, keep bits 1
+    inBits11 = P1IN & (BIT1); //0000 00x0, keep bit 1
+
+    if (!(inBits21 & BIT1))
+        out21 = 0x01; //0000 0001
+    else if (!(inBits11 & BIT1))
+        out11 = 0x04; //0000 0100
+    else
+        out21 = 0x00;
+
+    out = (out21|out11);
+
+    return out;
 }
 
 unsigned int potValue(void)
 {
     REFCTL0 &= ~REFMSTR;
-    ADC12CTL0 = ADC12SHT0_9 /*| ADC12REFON | ADC12REF2_5V*/ | ADC12ON;
+    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12REF2_5V | ADC12ON;
     ADC12CTL1 = ADC12SHP;
     ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0;
 
     P6SEL |= BIT0;
-    ADC12CTL0 &= ~ ADC12SC;
+    ADC12CTL0 &= ~ADC12SC;
 
     ADC12CTL0 |= ADC12SC + ADC12ENC;
 
@@ -389,7 +566,7 @@ unsigned int potValue(void)
         __no_operation();
     }
 
-    potVal = ADC12MEM0 & 0xFFFF;
+    potVal = ADC12MEM0 & 0x0FFF;
     return potVal;
 }
 
