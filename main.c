@@ -316,7 +316,7 @@ void configPot(void)
 unsigned int potValue(void)
 {
     REFCTL0 &= ~REFMSTR;
-    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12REF2_5V*/ | ADC12ON;
+    ADC12CTL0 = ADC12SHT0_9 /*| ADC12REFON | ADC12REF2_5V*/ | ADC12ON;
     ADC12CTL1 = ADC12SHP;
     ADC12MCTL0 = ADC12SREF_0 + ADC12INCH_0;
 
@@ -330,13 +330,13 @@ unsigned int potValue(void)
         __no_operation();
     }
 
-    potVal = ADC12MEM0 & 0x0FFF;
+    potVal = ADC12MEM0 & 0xFFFF;
     return potVal;
 }
 
 void printPotVal(unsigned int gal)
 {
-    for (j = 5; j >= 0; j--)
+    for (j = 4; j >= 0; j--)
     {
         potArray[j] = ((gal % 10) + 0x30);
         gal = gal / 10;
