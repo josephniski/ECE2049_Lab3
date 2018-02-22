@@ -17,8 +17,12 @@
 
 
 //FUNCTIONS
+void swDelay(char numLoops);
 void decimalASCIITime(long unsigned int timeInput);
 void decimalASCIIDate(long unsigned int dateInput);
+void updateMonth(long unsigned int dateInput);
+void updateDay(long unsigned int dateInput, unsigned int month);
+void updateHour(long unsigned int timeInput);
 void runtimerA2(void);
 void stoptimerA2(int reset);
 void adc12_config(void);
@@ -35,6 +39,7 @@ void printPotVal(unsigned int gal);
 unsigned int in_temp;
 int state = 0;
 long unsigned int timer_cnt = 15552000; //June 29th 00:00:00
+long unsigned int leap_cnt = 0;
 unsigned char timeArray[8] = {' '};
 unsigned char dateArray[6] = {' '};
 unsigned char secArray[2] = {' '};
@@ -63,6 +68,9 @@ char pressed2 = 0x00;
 unsigned char potArray[5] = {' '};
 unsigned int pot = 0;
 unsigned int potVal = 0;
+unsigned int updateValue = 0;
+unsigned int lastVal = 0;
+unsigned int updatedDay, monthLen, updatedHour, updatedMin, updatedSec;
 
 int main(void)
 {
@@ -76,7 +84,7 @@ int main(void)
     configKeypad();
     configLaunchButtons();
 
-    //adc12_config();
+    adc12_config();
 
 
     // *** Intro Screen ***
@@ -84,13 +92,13 @@ int main(void)
 
     while (1)
     {
-        //displayTempC(adc_inTemp);
+        displayTempC(adc_inTemp);
 
         switch (state){
         case 0:  // display mode
-            //runtimerA2();
+            runtimerA2();
 
-            /*displayTempC(adc_inTemp);
+            displayTempC(adc_inTemp);
 
             decimalASCIIDate(timer_cnt);
             decimalASCIITime(timer_cnt);
@@ -106,42 +114,32 @@ int main(void)
                                         OPAQUE_TEXT);
 
             Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
-                                        OPAQUE_TEXT);*/
-
-            potVal = potValue();
-            printPotVal(potVal);
-
-            Graphics_drawStringCentered(&g_sContext, potArray, 5, 48, 75,
                                         OPAQUE_TEXT);
-            // Update display
-            Graphics_flushBuffer(&g_sContext);
-
 
 
             // Update display
             Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
-                stoptimerA2(0);
+                //stoptimerA2(0);
                 state = 1;
             }
 
             break;
 
-        case 1: //Edit MONTHS
-
+        case 1: //Edit MONTH
             potVal = potValue();
-            printPotVal(potVal);
 
-            Graphics_drawStringCentered(&g_sContext, potArray, 5, 48, 75,
+            timer_cnt = (potVal*(60L*60*24))/12;
+
+            updateMonth(timer_cnt);
+
+            Graphics_drawStringCentered(&g_sContext, dateArray, 6, 48, 25,
                                         OPAQUE_TEXT);
             // Update display
             Graphics_flushBuffer(&g_sContext);
 
-            break;
-
-            /*if (pressed2 == 0x01){
-
+            if (pressed2 == 0x01){
                 state = 2;
             }
 
@@ -152,6 +150,16 @@ int main(void)
             break;
 
         case 2: //Edit DAY
+            potVal = potValue();
+
+            updatedDay = potVal/131;
+
+            updateDay(updatedDay, (monthLen+1));
+
+            Graphics_drawStringCentered(&g_sContext, dateArray, 6, 48, 25,
+            OPAQUE_TEXT);
+            // Update display
+            Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
                 state = 3;
@@ -164,6 +172,16 @@ int main(void)
             break;
 
         case 3: //Edit HOURS
+           potVal = potValue();
+
+           updatedHour = potVal/164;
+
+           updateHour(updatedHour);
+
+           Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
+                                       OPAQUE_TEXT);
+           // Update display
+           Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
                 state = 4;
@@ -175,7 +193,7 @@ int main(void)
 
             break;
 
-        case 4: //Edit MINUTES
+        /*case 4: //Edit MINUTES
 
             if (pressed2 == 0x01){
                 state = 5;
@@ -198,19 +216,14 @@ int main(void)
              }
 
             break;*/
-
-
         }
-
-
     }
-
 }
 
 void runtimerA2(void)
 {
 // This function configures and starts Timer A2
-// Timer is counting ~1 seconds
+// Timer is counting ~1/1000 seconds
 //
 // Input: none, Output: none
 //
@@ -218,7 +231,7 @@ void runtimerA2(void)
 //
 // Use ACLK, 16 Bit, up mode, 1 divider
     TA2CTL = TASSEL_1 + MC_1 + ID_0;
-    TA2CCR0 = 32767; // 32767+1 = 32768 ACLK tics = ~1 seconds
+    TA2CCR0 = 32; // 32+1 = 33 ACLK tics = ~1/1000 seconds
     TA2CCTL0 = CCIE; // TA2CCR0 interrupt enabled
 }
 
@@ -241,16 +254,18 @@ void stoptimerA2(int reset)
 #pragma vector=TIMER2_A0_VECTOR
 __interrupt void TimerA2_ISR(void)
 {
-    timer_cnt++;
-    /*leap_cnt++;
-    if(leap_cnt == x counts)
+    pressed2 = launchpadButtonStates(); //determine when the button is pressed
+
+    leap_cnt++;
+    if(leap_cnt == 1000)
     {
-        leap_cnt--;
-    }*/
+        if(state == 0){
+        timer_cnt++;
+        }
+        leap_cnt = 0;
+    }
 
     ADC12CTL0 |= ADC12SC + ADC12ENC; //start conversion
-
-    pressed2 = launchpadButtonStates(); //determine when the button is pressed
 }
 
 void decimalASCIITime(long unsigned int timeInput){
@@ -261,9 +276,9 @@ void decimalASCIITime(long unsigned int timeInput){
     long unsigned int sec = 0;
 
     date = date + timeInput/(60L*60*24);
-    hour = (timeInput - date*60*60*24)/(60*60);
-    min = (timeInput - date*60*60*24 - hour*60*60)/(60);
-    sec = (timeInput - date*60*60*24 - hour*60*60 - min*60);
+    hour = (timeInput - date*60*60*24)/(60*60); //hour = time input - date * 24
+    min = (timeInput - date*60*60*24 - hour*60*60)/(60); //minutes = time input - date * 24 * 60
+    sec = (timeInput - date*60*60*24 - hour*60*60 - min*60); //seconds = time input - date * 24 * 60 * 60
 
     for (i = 1; i >= 0; i--){
         secArray[i] = ((sec % 10) + 0x30);
@@ -288,6 +303,129 @@ void decimalASCIITime(long unsigned int timeInput){
     timeArray[5] = ':';
     timeArray[6] = secArray[0];
     timeArray[7] = secArray[1];
+
+}
+
+void updateHour(long unsigned int timeInput)
+{
+    long unsigned int hour = 0;
+    hour = timeInput % 24;
+
+    for (i = 1; i >= 0; i--){
+        hourArray[i] = ((hour % 10) + 0x30);
+        hour = hour / 10;
+    }
+
+    timeArray[0] = hourArray[0];
+    timeArray[1] = hourArray[1];
+}
+
+void updateMonth(long unsigned int dateInput){
+
+    days = ((dateInput/(60L*60*24))%365);
+
+    if (days > 0 && days <= 31){
+        monthArray[0] = 'J';
+        monthArray[1] = 'A';
+        monthArray[2] = 'N';
+        actDays = days;
+        monthLen = 31;
+    }
+    else if (days > 31 && days <= 59){
+        monthArray[0] = 'F';
+        monthArray[1] = 'E';
+        monthArray[2] = 'B';
+        actDays = days - 31;
+        monthLen = 28;
+    }
+    else if (days > 59 && days <= 90){
+        monthArray[0] = 'M';
+        monthArray[1] = 'A';
+        monthArray[2] = 'R';
+        actDays = days - 59;
+        monthLen = 31;
+    }
+    else if (days > 90 && days <= 120){
+        monthArray[0] = 'A';
+        monthArray[1] = 'P';
+        monthArray[2] = 'R';
+        actDays = days - 90;
+        monthLen = 30;
+    }
+    else if (days > 120 && days <= 151){
+        monthArray[0] = 'M';
+        monthArray[1] = 'A';
+        monthArray[2] = 'Y';
+        actDays = days - 120;
+        monthLen = 31;
+    }
+    else if (days > 151 && days <= 181){
+        monthArray[0] = 'J';
+        monthArray[1] = 'U';
+        monthArray[2] = 'N';
+        actDays = days - 151;
+        monthLen = 30;
+    }
+    else if (days > 181 && days <= 212){
+        monthArray[0] = 'J';
+        monthArray[1] = 'U';
+        monthArray[2] = 'L';
+        actDays = days - 181;
+        monthLen = 31;
+    }
+    else if (days > 212 && days <= 243){
+        monthArray[0] = 'A';
+        monthArray[1] = 'U';
+        monthArray[2] = 'G';
+        actDays = days - 212;
+        monthLen = 31;
+    }
+    else if (days > 243 && days <= 273){
+        monthArray[0] = 'S';
+        monthArray[1] = 'E';
+        monthArray[2] = 'P';
+        actDays = days - 243;
+        monthLen = 30;
+    }
+    else if (days > 273 && days <= 304){
+        monthArray[0] = 'O';
+        monthArray[1] = 'C';
+        monthArray[2] = 'T';
+        actDays = days - 273;
+        monthLen = 31;
+    }
+    else if (days > 304 && days <= 334){
+        monthArray[0] = 'N';
+        monthArray[1] = 'O';
+        monthArray[2] = 'V';
+        actDays = days - 304;
+        monthLen = 30;
+    }
+    else if (days > 334 && days <= 365){
+        monthArray[0] = 'D';
+        monthArray[1] = 'E';
+        monthArray[2] = 'C';
+        actDays = days - 334;
+        monthLen = 31;
+    }
+
+    dateArray[0] = monthArray[0];
+    dateArray[1] = monthArray[1];
+    dateArray[2] = monthArray[2];
+}
+
+void updateDay(long unsigned int dateInput, unsigned int monthLen)
+{
+
+    days = dateInput % monthLen;
+    for (j = 1; j >= 0; j--)
+    {
+        daysArray[j] = ((days % 10) + 0x30);
+        days = days / 10;
+    }
+
+    dateArray[4] = daysArray[0];
+    dateArray[5] = daysArray[1];
 
 }
 
@@ -576,5 +714,26 @@ void printPotVal(unsigned int gal)
     {
         potArray[j] = ((gal % 10) + 0x30);
         gal = gal / 10;
+    }
+}
+
+void swDelay(char numLoops)
+{
+    // This function is a software delay. It performs
+    // useless loops to waste a bit of time
+    //
+    // Input: numLoops = number of delay loops to execute
+    // Output: none
+    //
+    // smj, ECE2049, 25 Aug 2013
+
+    volatile unsigned int i,j;  // volatile to prevent removal in optimization
+                                // by compiler. Functionally this is useless code
+
+    for (j=0; j<numLoops; j++)
+    {
+        i = 50000 ;                 // SW Delay
+        while (i > 0)               // could also have used while (i)
+           i--;
     }
 }
