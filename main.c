@@ -23,6 +23,8 @@ void decimalASCIIDate(long unsigned int dateInput);
 void updateMonth(long unsigned int dateInput);
 void updateDay(long unsigned int dateInput, unsigned int month);
 void updateHour(long unsigned int timeInput);
+void updateMin(long unsigned int timeInput);
+void updateSec(long unsigned int timeInput);
 void runtimerA2(void);
 void stoptimerA2(int reset);
 void adc12_config(void);
@@ -71,9 +73,10 @@ unsigned int potVal = 0;
 unsigned int updateValue = 0;
 unsigned int lastVal = 0;
 unsigned int updatedDay, monthLen, updatedHour, updatedMin, updatedSec;
+long unsigned int outputVal = 0;
 
 int main(void)
-{
+ {
     WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer. Always need to stop this!!
                                      // You can then configure it properly, if desired
     initLeds();
@@ -128,6 +131,8 @@ int main(void)
             break;
 
         case 1: //Edit MONTH
+            displayTempC(adc_inTemp);
+
             potVal = potValue();
 
             timer_cnt = (potVal*(60L*60*24))/12;
@@ -140,6 +145,7 @@ int main(void)
             Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
+                timer_cnt = outputVal;
                 state = 2;
             }
 
@@ -150,6 +156,8 @@ int main(void)
             break;
 
         case 2: //Edit DAY
+            displayTempC(adc_inTemp);
+
             potVal = potValue();
 
             updatedDay = potVal/131;
@@ -162,16 +170,20 @@ int main(void)
             Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
+                timer_cnt = timer_cnt + outputVal;
                 state = 3;
             }
 
             else if (pressed2 == 0x04){
+                timer_cnt = timer_cnt + outputVal;
                  state = 0; // go back to display mode
             }
 
             break;
 
         case 3: //Edit HOURS
+           displayTempC(adc_inTemp);
+
            potVal = potValue();
 
            updatedHour = potVal/164;
@@ -184,38 +196,68 @@ int main(void)
            Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
+                timer_cnt = timer_cnt + outputVal;
                 state = 4;
             }
 
             else if (pressed2 == 0x04){
+                timer_cnt = timer_cnt + outputVal;
                  state = 0; // go back to display mode
             }
 
             break;
 
-        /*case 4: //Edit MINUTES
+       case 4: //Edit MINUTES
+          displayTempC(adc_inTemp);
+
+          potVal = potValue();
+
+          updatedMin = potVal/68;
+
+          updateMin(updatedMin);
+
+          Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
+                                      OPAQUE_TEXT);
+          // Update display
+          Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
+                timer_cnt = timer_cnt + outputVal;
                 state = 5;
             }
 
             else if (pressed2 == 0x04){
+                timer_cnt = timer_cnt + outputVal;
                  state = 0; // go back to display mode
             }
 
             break;
 
         case 5: //Edit SECONDS
+           displayTempC(adc_inTemp);
+
+           potVal = potValue();
+
+           updatedSec = potVal/68;
+
+           updateSec(updatedSec);
+
+           Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
+                                       OPAQUE_TEXT);
+           // Update display
+           Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
-                state = 1;
+                timer_cnt = timer_cnt + outputVal;
+                state = 0;
             }
 
             else if (pressed2 == 0x04){
+                timer_cnt = timer_cnt + outputVal;
                  state = 0; // go back to display mode
              }
 
-            break;*/
+            break;
         }
     }
 }
@@ -310,6 +352,7 @@ void updateHour(long unsigned int timeInput)
 {
     long unsigned int hour = 0;
     hour = timeInput % 24;
+    outputVal = hour * 60L * 60;
 
     for (i = 1; i >= 0; i--){
         hourArray[i] = ((hour % 10) + 0x30);
@@ -319,6 +362,37 @@ void updateHour(long unsigned int timeInput)
     timeArray[0] = hourArray[0];
     timeArray[1] = hourArray[1];
 }
+
+void updateMin(long unsigned int timeInput)
+{
+    long unsigned int minute = 0;
+    minute = timeInput % 60;
+    outputVal = minute * 60L;
+
+    for (i = 1; i >= 0; i--){
+        minArray[i] = ((minute % 10) + 0x30);
+        minute = minute / 10;
+    }
+
+    timeArray[3] = minArray[0];
+    timeArray[4] = minArray[1];
+}
+void updateSec(long unsigned int timeInput)
+{
+    long unsigned int second = 0;
+    second = timeInput % 60;
+    outputVal = second;
+
+    for (i = 1; i >= 0; i--){
+        secArray[i] = ((second % 10) + 0x30);
+        second = second / 10;
+    }
+
+    timeArray[6] = secArray[0];
+    timeArray[7] = secArray[1];
+}
+
+
 
 void updateMonth(long unsigned int dateInput){
 
@@ -409,6 +483,8 @@ void updateMonth(long unsigned int dateInput){
         monthLen = 31;
     }
 
+    outputVal = days * 60 * 60 * 24;
+
     dateArray[0] = monthArray[0];
     dateArray[1] = monthArray[1];
     dateArray[2] = monthArray[2];
@@ -418,6 +494,7 @@ void updateDay(long unsigned int dateInput, unsigned int monthLen)
 {
 
     days = dateInput % monthLen;
+    outputVal = days * 60 * 60 * 24;
     for (j = 1; j >= 0; j--)
     {
         daysArray[j] = ((days % 10) + 0x30);
