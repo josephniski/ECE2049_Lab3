@@ -101,6 +101,8 @@ int main(void)
         case 0:  // display mode
             runtimerA2();
 
+            adc12_config();
+
             displayTempC(adc_inTemp);
 
             decimalASCIIDate(timer_cnt);
@@ -141,6 +143,12 @@ int main(void)
 
             Graphics_drawStringCentered(&g_sContext, dateArray, 6, 48, 25,
                                         OPAQUE_TEXT);
+
+            Graphics_drawStringCentered(&g_sContext, tempArrayC, 5, 48, 55,
+                                        OPAQUE_TEXT);
+
+            Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
+                                        OPAQUE_TEXT);
             // Update display
             Graphics_flushBuffer(&g_sContext);
 
@@ -166,6 +174,12 @@ int main(void)
 
             Graphics_drawStringCentered(&g_sContext, dateArray, 6, 48, 25,
             OPAQUE_TEXT);
+
+            Graphics_drawStringCentered(&g_sContext, tempArrayC, 5, 48, 55,
+                                        OPAQUE_TEXT);
+
+            Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
+                                        OPAQUE_TEXT);
             // Update display
             Graphics_flushBuffer(&g_sContext);
 
@@ -191,6 +205,12 @@ int main(void)
            updateHour(updatedHour);
 
            Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
+                                       OPAQUE_TEXT);
+
+           Graphics_drawStringCentered(&g_sContext, tempArrayC, 5, 48, 55,
+                                       OPAQUE_TEXT);
+
+           Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
                                        OPAQUE_TEXT);
            // Update display
            Graphics_flushBuffer(&g_sContext);
@@ -218,6 +238,12 @@ int main(void)
 
           Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
                                       OPAQUE_TEXT);
+
+          Graphics_drawStringCentered(&g_sContext, tempArrayC, 5, 48, 55,
+                                      OPAQUE_TEXT);
+
+          Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
+                                      OPAQUE_TEXT);
           // Update display
           Graphics_flushBuffer(&g_sContext);
 
@@ -244,12 +270,18 @@ int main(void)
 
            Graphics_drawStringCentered(&g_sContext, timeArray, 8, 48, 35,
                                        OPAQUE_TEXT);
+
+           Graphics_drawStringCentered(&g_sContext, tempArrayC, 5, 48, 55,
+                                       OPAQUE_TEXT);
+
+           Graphics_drawStringCentered(&g_sContext, tempArrayF, 5, 48, 65,
+                                       OPAQUE_TEXT);
            // Update display
            Graphics_flushBuffer(&g_sContext);
 
             if (pressed2 == 0x01){
                 timer_cnt = timer_cnt + outputVal;
-                state = 0;
+                state = 1;
             }
 
             else if (pressed2 == 0x04){
